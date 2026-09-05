@@ -463,59 +463,7 @@ For a production deployment, the following improvements should be considered:
 
 ---
 
-# 13. Evidence
-
-### 1. Compute Engine VM
-
-![Compute Engine VM](screenshots/01-bloghost-vm.png)
-
-The `bloghost` VM was successfully created and configured as the web server.
-
-### 2. Cloud Storage Bucket
-
-![Cloud Storage Bucket](screenshots/02-cloud-storage-bucket.png)
-
-The Cloud Storage bucket was created successfully.
-
-### 3. Cloud Storage Object
-
-![Cloud Storage Object](screenshots/03-cloud-storage-object-upload.png)
-
-The `my-excellent-blog.png` image was uploaded to the bucket.
-
-### 4. Cloud SQL Instance
-
-![Cloud SQL Instance](screenshots/04-cloud-sql-instance.png)
-
-The managed MySQL instance `blog-db` was successfully created.
-
-### 5. Cloud SQL Network
-
-![Cloud SQL Network](screenshots/05-cloud-sql-network.png)
-
-The VM external IP was configured as an authorized network.
-
-### 6. Database Connection Failure
-
-![Database Connection Failed](screenshots/06-database-connection-failed.png)
-
-The first database connection failed because the PHP application still contained the `CLOUDSQLIP` placeholder.
-
-### 7. Successful Database Connection
-
-![Database Connected](screenshots/07-database-connected.png)
-
-After correcting the Cloud SQL connection configuration, the application successfully connected to the database.
-
-### 8. Final Web Application
-
-![Final Blog](screenshots/08-blog-with-cloud-storage-image.png)
-
-The final application successfully displayed the image stored in Cloud Storage.
-
----
-
-# 14. Final Result
+# 13. Final Result
 
 The completed application integrates the three main Google Cloud components:
 
