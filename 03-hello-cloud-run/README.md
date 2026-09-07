@@ -1,3 +1,4 @@
+````markdown
 # Hello Cloud Run
 
 ## Overview
@@ -29,66 +30,89 @@ The implementation uses:
 ## Architecture
 
 ```text
-                Developer
-                    |
-                    | Code
-                    v
-              Cloud Shell
-                    |
-                    | gcloud builds submit
-                    v
-             Cloud Build
-                    |
-                    | Container Image
-                    v
-          Artifact Registry
-          my-repository
-                    |
-                    | gcloud run deploy
-                    v
-             Cloud Run
-             helloworld
-                    |
-                    | HTTPS
-                    v
-                 User
-```
+Developer
+    |
+    | Application code
+    v
+Cloud Shell
+    |
+    | gcloud builds submit
+    v
+Cloud Build
+    |
+    | Container image
+    v
+Artifact Registry
+    |
+    | gcloud run deploy
+    v
+Cloud Run
+    |
+    | HTTPS
+    v
+User
+````
 
 ---
 
 # 1. Enable APIs and Configure Environment
 
-The required APIs were enabled from Cloud Shell:
+The required Cloud Run and Artifact Registry APIs were enabled from Cloud Shell:
 
 ```bash
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com
 ```
 
-The default compute region and a location variable were configured:
+The compute region was configured:
 
 ```bash
 gcloud config set compute/region europe-west1
+```
+
+An environment variable was also created to store the selected region:
+
+```bash
 LOCATION="europe-west1"
 ```
+
+The `gcloud` CLI was used to manage the Google Cloud resources from Cloud Shell.
 
 ![APIs Enabled and Environment Configured](screenshots/01-apis-enabled.png)
 
 ---
 
-# 2. Node.js Application
+# 2. Create the Node.js Application
 
-A directory for the application was created and initialized:
+A directory for the application was created:
 
 ```bash
-mkdir helloworld
-cd helloworld
-npm init -y
-npm install express
+mkdir helloworld && cd helloworld
 ```
 
-The application file `index.js` was created with a simple Express web server:
+The application uses **Node.js** with the **Express** web framework.
 
-```js
+The `package.json` file defines the application metadata, startup command, and Express dependency:
+
+```json
+{
+  "name": "helloworld",
+  "description": "Simple hello world sample in Node",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Google LLC",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
+```
+
+The `index.js` file contains a simple Express web server:
+
+```javascript
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 8080;
@@ -103,30 +127,46 @@ app.listen(port, () => {
 });
 ```
 
-The application listens on the port defined by the `PORT` environment variable, which Cloud Run sets automatically at runtime.
+### Application behavior
+
+* Express creates the web server.
+* The application listens on the port defined by the `PORT` environment variable.
+* Port `8080` is used as the default.
+* The `/` route returns `Hello World!`.
+* `app.listen()` starts the server.
 
 ![Node.js Application](screenshots/02-nodejs-application.png)
 
 ---
 
-# 3. Artifact Registry Repository
+# 3. Create an Artifact Registry Repository
 
 A Docker repository named `my-repository` was created in Artifact Registry:
 
 ```bash
 gcloud artifacts repositories create my-repository \
-  --repository-format=docker \
-  --location=$LOCATION \
-  --description="Docker repository"
+    --repository-format=docker \
+    --location=$LOCATION \
+    --description="Docker repository"
 ```
 
-Docker was then configured to authenticate with Artifact Registry:
+### Command explanation
+
+* `gcloud artifacts repositories create`: Creates an Artifact Registry repository.
+* `my-repository`: Name of the repository.
+* `--repository-format=docker`: Specifies that the repository stores Docker images.
+* `--location=$LOCATION`: Specifies the repository region.
+* `--description`: Adds a description to the repository.
+
+Docker authentication was then configured for Artifact Registry:
 
 ```bash
 gcloud auth configure-docker $LOCATION-docker.pkg.dev
 ```
 
-### Repository Configuration
+This allows Docker to authenticate when pulling or pushing images to the Artifact Registry Docker repository.
+
+### Repository configuration
 
 ```text
 Name:     my-repository
@@ -138,12 +178,12 @@ Location: europe-west1
 
 ---
 
-# 4. Dockerfile
+# 4. Containerize the Application
 
-A `Dockerfile` was created in the application directory to define how the container image is built:
+A `Dockerfile` was created in the application directory. It defines the instructions required to build the container image:
 
 ```dockerfile
-# Use the official lightweight Node.js 20 image.
+# Use the official lightweight Node.js image.
 FROM node:20-slim
 
 # Create and change to the app directory.
@@ -162,64 +202,95 @@ COPY . ./
 CMD [ "npm", "start" ]
 ```
 
-The Dockerfile:
+### Dockerfile instructions
 
-1. Uses the official `node:20-slim` base image to keep the image lightweight.
-2. Sets `/usr/src/app` as the working directory.
-3. Copies `package.json` and installs only production dependencies.
-4. Copies the application source code.
-5. Starts the application with `npm start`.
+| Instruction | Purpose                                                |
+| ----------- | ------------------------------------------------------ |
+| `FROM`      | Defines the base Node.js image                         |
+| `WORKDIR`   | Sets the working directory inside the container        |
+| `COPY`      | Copies application files into the image                |
+| `RUN`       | Installs the production dependencies                   |
+| `CMD`       | Defines the command executed when the container starts |
+
+The Dockerfile acts as a recipe for creating the application container image.
 
 ![Dockerfile](screenshots/04-dockerfile.png)
 
 ---
 
-# 5. Container Image Build
+# 5. Build the Container Image
 
 The container image was built using **Cloud Build** and pushed directly to Artifact Registry:
 
 ```bash
 gcloud builds submit \
-  --tag $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
+    --tag $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
 ```
 
-Cloud Build:
+### Command explanation
 
-- Uploaded the application source code to Cloud Storage.
-- Built the container image remotely using the Dockerfile.
-- Pushed the resulting image to Artifact Registry.
+* `gcloud builds submit`: Submits the application source to Cloud Build.
+* `--tag`: Specifies the name and destination of the container image.
+* `$LOCATION-docker.pkg.dev`: Artifact Registry Docker endpoint.
+* `$GOOGLE_CLOUD_PROJECT`: Current Google Cloud project.
+* `my-repository`: Artifact Registry repository.
+* `helloworld`: Container image name.
 
-### Build Result
+Cloud Build builds the container image according to the Dockerfile and pushes the resulting image to Artifact Registry.
+
+The build completed successfully:
 
 ```text
-ID:       c2177eb2-9c78-40d5-98e9-597534a79d2b
-DURATION: 35s
-STATUS:   SUCCESS
-IMAGES:   europe-west1-docker.pkg.dev/qwiklabs-gcp-02-8f0ffc32f831/my-repository/helloworld
+STATUS: SUCCESS
 ```
 
 ![Container Image Build](screenshots/05-container-image-build.png)
 
 ---
 
-# 6. Container Image in Artifact Registry
+# 6. Verify the Container Image in Artifact Registry
 
-After a successful build, the `helloworld` container image appeared in Artifact Registry under the `my-repository` repository.
+After the successful build, the `helloworld` container image was available in the `my-repository` Docker repository.
+
+The image was verified through:
+
+**Artifact Registry → Repositories → my-repository → helloworld**
+
+The image follows this structure:
+
+```text
+REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE
+```
+
+For this lab:
+
+```text
+europe-west1-docker.pkg.dev/PROJECT_ID/my-repository/helloworld
+```
 
 ![Container Image in Artifact Registry](screenshots/06-artifact-registry-image.png)
 
 ---
 
-# 7. Local Container Test
+# 7. Test the Container Locally
 
-The container image was tested locally in Cloud Shell before deploying to Cloud Run:
+Before deploying the application to Cloud Run, the container image was tested locally in Cloud Shell:
 
 ```bash
 docker run -d -p 8080:8080 \
-  $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
+    $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
 ```
 
-The application was then tested using Cloud Shell's web preview on port `8080`, which returned:
+### Command explanation
+
+* `docker run`: Creates and starts a container from the specified image.
+* `-d`: Runs the container in detached mode.
+* `-p 8080:8080`: Maps port `8080` on the host to port `8080` inside the container.
+* The final argument specifies the container image.
+
+The application was accessed using Cloud Shell **Web Preview** on port `8080`.
+
+The expected response was:
 
 ```text
 Hello World!
@@ -227,27 +298,32 @@ Hello World!
 
 ![Local Container Test](screenshots/07-local-container-test.png)
 
+This confirms that the container starts correctly and that the Node.js application can handle HTTP requests.
+
 ---
 
-# 8. Cloud Run Deployment
+# 8. Deploy the Application to Cloud Run
 
-The container image was deployed to Cloud Run:
+The container image was deployed to Cloud Run using:
 
 ```bash
 gcloud run deploy helloworld \
-  --image $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld \
-  --allow-unauthenticated \
-  --region=$LOCATION
+    --image $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld \
+    --allow-unauthenticated \
+    --region=$LOCATION
 ```
 
-Cloud Run:
+### Command explanation
 
-- Created the `helloworld` service.
-- Set the IAM policy to allow unauthenticated access.
-- Created the first revision.
-- Routed 100% of traffic to the new revision.
+* `gcloud run deploy`: Deploys an application to Cloud Run.
+* `helloworld`: Name of the Cloud Run service.
+* `--image`: Specifies the container image to deploy.
+* `--allow-unauthenticated`: Allows public access to the service.
+* `--region=$LOCATION`: Specifies the Cloud Run region.
 
-### Deployment Result
+Cloud Run created the service, created the first revision, and routed 100% of the traffic to the deployed revision.
+
+### Deployment result
 
 ```text
 Service:  helloworld
@@ -260,15 +336,15 @@ URL:      https://helloworld-904305763605.europe-west1.run.app
 
 ---
 
-# 9. Application Running on Cloud Run
+# 9. Verify the Application on Cloud Run
 
-The deployed application was verified by accessing the Cloud Run service URL in the browser:
+The Cloud Run service URL was opened in a browser:
 
 ```text
 https://helloworld-904305763605.europe-west1.run.app
 ```
 
-The application responded with:
+The deployed application successfully returned:
 
 ```text
 Hello World!
@@ -276,155 +352,163 @@ Hello World!
 
 ![Application Running on Cloud Run](screenshots/09-cloud-run-application.png)
 
+This confirms that the containerized application was successfully deployed and is accessible through a public HTTPS endpoint.
+
 ---
 
-# 10. Cloud Run Service
+# 10. Verify the Cloud Run Service
 
-The `helloworld` service is visible in the Cloud Run console with its deployment type and region.
+The deployed service was also verified through:
+
+**Google Cloud Console → Cloud Run → Services**
+
+The service appears as:
 
 ```text
-Service:         helloworld
-Deployment type: Container
-Region:          europe-west1
+Service:          helloworld
+Deployment type:  Container
+Region:           europe-west1
 ```
 
 ![Cloud Run Service](screenshots/10-cloud-run-service.png)
 
 ---
 
-# 11. Complete Commands Used
+# 11. Key Concepts
+
+### Cloud Run
+
+**Cloud Run** is a managed serverless platform for running stateless containers. It abstracts infrastructure management and automatically handles the deployment and scaling of container instances.
+
+### Artifact Registry
+
+**Artifact Registry** is a managed service for storing and managing container images and other software artifacts. In this lab, it stores the `helloworld` container image.
+
+### Cloud Build
+
+**Cloud Build** is a managed build service that builds the container image in Google Cloud using the Dockerfile and pushes the resulting image to Artifact Registry.
+
+### Dockerfile
+
+A **Dockerfile** contains the instructions used to build a container image. It defines the base image, working directory, application files, dependencies, and startup command.
+
+### Container Image
+
+A **container image** is a packaged version of an application and its required dependencies. The image created in this lab was stored in Artifact Registry and later deployed to Cloud Run.
+
+### Serverless
+
+Cloud Run is **serverless**, meaning Google Cloud manages the underlying infrastructure. The developer focuses on the application and container image instead of managing servers.
+
+### Automatic Scaling
+
+Cloud Run automatically adjusts the number of container instances according to incoming requests. This allows the application to scale based on demand.
+
+### `--allow-unauthenticated`
+
+This option makes the Cloud Run service publicly accessible without requiring authentication. It was used in this lab so the application could be accessed through its public HTTPS URL.
+
+### `PORT` Environment Variable
+
+The application uses the `PORT` environment variable:
+
+```javascript
+const port = process.env.PORT || 8080;
+```
+
+This allows the application to listen on the port provided by the Cloud Run environment.
+
+---
+
+# 12. Complete Commands Used
 
 ```bash
-# Enable APIs
+# Enable required APIs
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com
 
-# Configure region and location
+# Configure region
 gcloud config set compute/region europe-west1
+
+# Set location variable
 LOCATION="europe-west1"
 
-# Create and initialize the application
+# Create application directory
 mkdir helloworld && cd helloworld
-npm init -y
-npm install express
 
-# Create the Artifact Registry repository
+# Create Artifact Registry repository
 gcloud artifacts repositories create my-repository \
-  --repository-format=docker \
-  --location=$LOCATION \
-  --description="Docker repository"
+    --repository-format=docker \
+    --location=$LOCATION \
+    --description="Docker repository"
 
 # Configure Docker authentication
 gcloud auth configure-docker $LOCATION-docker.pkg.dev
 
-# Build and push the container image
+# Build and push container image
 gcloud builds submit \
-  --tag $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
+    --tag $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
 
-# Test locally
+# Run the container locally
 docker run -d -p 8080:8080 \
-  $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
+    $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
 
 # Deploy to Cloud Run
 gcloud run deploy helloworld \
-  --image $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld \
-  --allow-unauthenticated \
-  --region=$LOCATION
+    --image $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld \
+    --allow-unauthenticated \
+    --region=$LOCATION
 ```
 
 ---
 
-# 12. Technologies and Services
+# 13. Cleanup
 
-| Service / Technology | Purpose                                            |
-| -------------------- | -------------------------------------------------- |
-| Cloud Shell          | Development and command-line environment           |
-| Node.js              | JavaScript runtime for the web application         |
-| Express              | Web framework for Node.js                          |
-| Docker               | Containerization platform                          |
-| Dockerfile           | Instructions to build the container image          |
-| Cloud Build          | Builds and pushes the container image remotely     |
-| Artifact Registry    | Stores the Docker container image                  |
-| Cloud Run            | Deploys and serves the containerized application   |
+After completing the lab, the container image and Cloud Run service can be deleted to avoid keeping unnecessary resources.
 
----
+### Delete the container image
 
-# 13. Key Concepts
-
-### Cloud Run
-
-Cloud Run is a fully managed serverless platform that automatically scales containerized applications. It handles infrastructure provisioning, scaling, and routing, so only the container image needs to be provided.
-
-### Artifact Registry
-
-Artifact Registry is a managed service for storing and managing container images and other build artifacts. It integrates directly with Cloud Build and Cloud Run.
-
-### Cloud Build
-
-Cloud Build is a serverless build platform that executes builds in the cloud. It can build Docker images from a Dockerfile and push them to Artifact Registry without requiring a local Docker environment.
-
-### Dockerfile
-
-A Dockerfile defines the instructions to build a container image. It specifies the base image, working directory, dependencies, and startup command.
-
-### `--allow-unauthenticated`
-
-This flag makes the Cloud Run service publicly accessible without requiring authentication. In a production environment, access control should be configured using IAM.
-
-### `PORT` Environment Variable
-
-Cloud Run automatically injects the `PORT` environment variable into the container. Applications must listen on this port to receive traffic.
-
----
-
-# 14. Security Considerations
-
-The configuration used in this laboratory was intended for a controlled learning environment.
-
-For a production deployment, the following improvements should be considered:
-
-- Remove `--allow-unauthenticated` and configure IAM-based access control.
-- Use **Secret Manager** for any sensitive configuration values.
-- Apply the **principle of least privilege** to service accounts.
-- Enable **VPC connectors** for private network access if needed.
-- Configure **minimum and maximum instance limits** to control scaling behavior.
-- Use a custom domain with **Cloud Run domain mappings**.
-
----
-
-# 15. End-to-End Application Flow
-
-```text
-Developer
-    |
-    | writes index.js + Dockerfile
-    v
-Cloud Shell
-    |
-    | gcloud builds submit
-    v
-Cloud Build
-    |
-    | builds container image
-    v
-Artifact Registry
-my-repository/helloworld
-    |
-    | gcloud run deploy
-    v
-Cloud Run
-helloworld service
-    |
-    | HTTPS request
-    v
-User → Hello World!
+```bash
+gcloud artifacts docker images delete \
+    $LOCATION-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/my-repository/helloworld
 ```
+
+This removes the container image from Artifact Registry.
+
+### Delete the Cloud Run service
+
+```bash
+gcloud run services delete helloworld \
+    --region="REGION"
+```
+
+This removes the deployed Cloud Run service.
+
+The cleanup step is important because storing container images in Artifact Registry can generate storage charges.
+
+---
+
+# 14. Technologies and Services
+
+| Service / Technology  | Purpose                                          |
+| --------------------- | ------------------------------------------------ |
+| **Cloud Shell**       | Development and command-line environment         |
+| **Node.js**           | JavaScript runtime for the application           |
+| **Express**           | Web framework for Node.js                        |
+| **Docker**            | Containerization platform                        |
+| **Dockerfile**        | Instructions for building the container image    |
+| **Cloud Build**       | Builds the container image in the cloud          |
+| **Artifact Registry** | Stores the Docker container image                |
+| **Cloud Run**         | Deploys and serves the containerized application |
 
 ---
 
 # Conclusion
 
-This laboratory provided practical experience building and deploying a containerized application on Google Cloud using a modern serverless workflow.
+This lab provided practical experience with the complete workflow for deploying a containerized web application on Google Cloud.
 
-The main steps were creating a Node.js application, containerizing it with Docker, building the image with Cloud Build, storing it in Artifact Registry, and deploying it to Cloud Run.
+The application was created with **Node.js and Express**, containerized using **Docker**, built using **Cloud Build**, stored in **Artifact Registry**, tested locally, and finally deployed to **Cloud Run**.
 
-The final result was a fully managed, publicly accessible web application running at a Cloud Run URL, with automatic scaling and no server infrastructure to manage.
+The final result was a containerized web application accessible through a public HTTPS endpoint managed by Cloud Run.
+
+```
+```
