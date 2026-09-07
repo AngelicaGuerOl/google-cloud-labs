@@ -75,6 +75,25 @@ Practical integration of Compute Engine, Cloud Storage, and Cloud SQL through a 
 
 ---
 
+### 03. Hello Cloud Run
+
+Build and deploy a containerized Node.js application to Cloud Run using Artifact Registry and Cloud Build.
+
+**Topics:**
+
+- Node.js and Express
+- Docker and Dockerfile
+- Cloud Build
+- Artifact Registry
+- Cloud Run
+- Container images
+- Serverless deployment
+- `gcloud` CLI
+
+[View Lab →](./03-hello-cloud-run/)
+
+---
+
 ### More Labs
 
 Additional hands-on labs will be added as the Google Cloud Engineering Certificate progresses.
@@ -104,7 +123,9 @@ google-cloud-labs/
 │   ├── screenshots/
 │   └── README.md
 │
-├── ...
+├── 03-hello-cloud-run/
+│   ├── screenshots/
+│   └── README.md
 │
 └── README.md
 ```
@@ -123,6 +144,9 @@ Google Cloud Platform
 ├── Compute Engine
 ├── Cloud Storage
 ├── Cloud SQL
+├── Cloud Run
+├── Artifact Registry
+├── Cloud Build
 ├── VPC
 ├── IAM
 ├── Firewall Rules
