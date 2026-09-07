@@ -1,4 +1,3 @@
-````markdown
 # Hello Cloud Run
 
 ## Overview
